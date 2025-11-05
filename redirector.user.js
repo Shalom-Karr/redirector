@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal SK Redirector
 // @namespace    http://tampermonkey.net/
-// @version      5.0
+// @version      5.1
 // @description  A single script to redirect from YouTube, Reddit, and JTech Forums to custom SK websites. Handles direct visits and Techloq block pages with persistent polling.
 // @author       Shalom Karr / YH Studios
 // @match        *://www.youtube.com/*
@@ -39,10 +39,10 @@
     }
 
     /**
-     * Handles all YouTube redirects with a clear priority:
+     * Handles all YouTube redirects with a clear priority, matching the SK dashboard's routing.
      * 1. Playlist ID -> /playlist?source=...
      * 2. Video ID -> /video?source=...
-     * 3. Channel Handle -> ?channel_source=...
+     * 3. Channel Handle -> /channel?source=...
      * 4. Fallback -> Base dashboard URL
      * @param {string} targetDomain - The dashboard's base URL.
      * @param {string} urlString - The full YouTube URL to parse.
@@ -66,10 +66,11 @@
             return;
         }
 
-        // 3. Check for Channel Handle
+        // 3. Check for Channel Handle (e.g., /@MrBeast)
         const channelHandle = urlString.match(channelPattern)?.[1];
         if (channelHandle) {
-            window.location.replace(`${targetDomain}?channel_source=${encodeURIComponent(channelHandle)}`);
+            // UPDATED: Redirects to /channel path with 'source' parameter
+            window.location.replace(`${targetDomain}/channel?source=${encodeURIComponent(channelHandle)}`);
             return;
         }
 
@@ -138,12 +139,11 @@
         pollForBlockedUrl();
     } else {
         const currentUrl = window.location.href;
-        const urlObject = new URL(currentUrl);
-
+        
         for (const rule of REDIRECT_CONFIG) {
             if (currentHostname.includes(rule.sourceDomain)) {
-                if (rule.type === 'path') {
-                    performPathRedirect(rule.targetDomain, urlObject);
+                 if (rule.type === 'path') {
+                    performPathRedirect(rule.targetDomain, new URL(currentUrl));
                 } else if (rule.type === 'youtube') {
                     performYoutubeRedirect(rule.targetDomain, currentUrl);
                 }
