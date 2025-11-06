@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal SK Redirector
 // @namespace    http://tampermonkey.net/
-// @version      5.1
+// @version      5.4
 // @description  A single script to redirect from YouTube, Reddit, and JTech Forums to custom SK websites. Handles direct visits and Techloq block pages with persistent polling.
 // @author       Shalom Karr / YH Studios
 // @match        *://www.youtube.com/*
@@ -139,7 +139,7 @@
         pollForBlockedUrl();
     } else {
         const currentUrl = window.location.href;
-        
+
         for (const rule of REDIRECT_CONFIG) {
             if (currentHostname.includes(rule.sourceDomain)) {
                  if (rule.type === 'path') {
