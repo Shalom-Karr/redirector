@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Universal SK Redirector
 // @namespace    http://tampermonkey.net/
-// @version      5.4
-// @description  A single script to redirect from YouTube, Reddit, and JTech Forums to custom SK websites. Handles direct visits and Techloq block pages with persistent polling.
+// @version      5.5
+// @description  Redirects from YouTube, Reddit, JTech, and Techloq to custom sites or a proxy fallback.
 // @author       Shalom Karr / YH Studios
 // @match        *://www.youtube.com/*
 // @match        *://reddit.com/*
@@ -22,8 +22,11 @@
         { type: 'youtube', sourceDomain: 'www.youtube.com', targetDomain: 'https://skyoutubebeta.netlify.app' }
     ];
 
+    // The proxy service to use as a fallback for non-custom sites.
+    const PROXY_DOMAIN = 'https://browser-53kp.onrender.com';
+
     // Polling Settings for Techloq
-    const MAX_TECHLOQ_RETRIES = 1200;
+    const MAX_TECHLOQ_RETRIES = 1200; // Total time: 5 minutes (1200 * 250ms)
     const TECHLOQ_RETRY_INTERVAL_MS = 250;
     // --- END CONFIGURATION ---
 
@@ -38,46 +41,31 @@
         window.location.replace(newUrl);
     }
 
-    /**
-     * Handles all YouTube redirects with a clear priority, matching the SK dashboard's routing.
-     * 1. Playlist ID -> /playlist?source=...
-     * 2. Video ID -> /video?source=...
-     * 3. Channel Handle -> /channel?source=...
-     * 4. Fallback -> Base dashboard URL
-     * @param {string} targetDomain - The dashboard's base URL.
-     * @param {string} urlString - The full YouTube URL to parse.
-     */
     function performYoutubeRedirect(targetDomain, urlString) {
         const playlistPattern = /[?&]list=([a-zA-Z0-9_-]+)/;
         const videoPattern = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?|shorts)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
         const channelPattern = /youtube\.com\/@([^\/?]+)/;
 
-        // 1. Check for Playlist ID
         const playlistId = urlString.match(playlistPattern)?.[1];
         if (playlistId) {
             window.location.replace(`${targetDomain}/playlist?source=${encodeURIComponent(playlistId)}`);
             return;
         }
 
-        // 2. Check for Video ID
         const videoId = urlString.match(videoPattern)?.[1];
         if (videoId) {
             window.location.replace(`${targetDomain}/video?source=${encodeURIComponent(videoId)}`);
             return;
         }
 
-        // 3. Check for Channel Handle (e.g., /@MrBeast)
         const channelHandle = urlString.match(channelPattern)?.[1];
         if (channelHandle) {
-            // UPDATED: Redirects to /channel path with 'source' parameter
             window.location.replace(`${targetDomain}/channel?source=${encodeURIComponent(channelHandle)}`);
             return;
         }
 
-        // 4. Fallback for homepage and other pages
         window.location.replace(targetDomain);
     }
-
 
     // --- TECHLOQ POLLING LOGIC ---
 
@@ -104,12 +92,16 @@
         }
 
         if (originalUrlStr) {
+            // A blocked URL was found. Decide where to redirect.
             try {
                 const urlObject = new URL(originalUrlStr);
                 const hostname = urlObject.hostname.replace(/^www\./, '');
+                let customRedirectFound = false;
 
+                // First, check if there's a custom redirect for this domain.
                 for (const rule of REDIRECT_CONFIG) {
                     if (hostname.includes(rule.sourceDomain.replace(/^www\./, ''))) {
+                        customRedirectFound = true;
                         if (rule.type === 'path') {
                             performPathRedirect(rule.targetDomain, urlObject);
                         } else if (rule.type === 'youtube') {
@@ -118,18 +110,30 @@
                         return; // Success, stop polling.
                     }
                 }
+
+                // If no custom redirect exists, use the proxy as a fallback.
+                if (!customRedirectFound) {
+                    window.location.replace(`${PROXY_DOMAIN}/proxy?url=${encodeURIComponent(originalUrlStr)}`);
+                    return; // Stop polling.
+                }
             } catch (e) {
                 console.error("Error processing the blocked URL:", e);
+                // Fallback to proxy homepage on error
+                window.location.replace(PROXY_DOMAIN);
             }
+            return; // Should be unreachable, but good for safety.
         }
 
-        // If no match found, continue polling.
+        // If no blocked URL is found, continue polling until timeout.
         techloqAttemptCount++;
         if (techloqAttemptCount < MAX_TECHLOQ_RETRIES) {
             setTimeout(pollForBlockedUrl, TECHLOQ_RETRY_INTERVAL_MS);
+        } else {
+            // Polling timed out. Assume this is not a block page (e.g., settings)
+            // or it's the base domain. Redirect to the proxy's homepage.
+            window.location.replace(PROXY_DOMAIN);
         }
     }
-
 
     // --- SCRIPT EXECUTION LOGIC ---
 
@@ -151,5 +155,4 @@
             }
         }
     }
-
 })();
