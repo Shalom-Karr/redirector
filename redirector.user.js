@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Universal SK Redirector
 // @namespace    http://tampermonkey.net/
-// @version      5.5
+// @version      6.0
 // @description  Redirects from YouTube, Reddit, JTech, and Techloq to custom sites or a proxy fallback.
 // @author       Shalom Karr / YH Studios
 // @match        *://www.youtube.com/*
